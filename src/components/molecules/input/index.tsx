@@ -1,3 +1,4 @@
+import clsx from "clsx"
 import React, {
   ChangeEventHandler,
   FocusEventHandler,
@@ -5,31 +6,31 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react"
+import InputError from "../../atoms/input-error"
 import MinusIcon from "../../fundamentals/icons/minus-icon"
 import PlusIcon from "../../fundamentals/icons/plus-icon"
-import InputContainer from "../../fundamentals/input-container"
 import InputHeader, { InputHeaderProps } from "../../fundamentals/input-header"
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement> &
+export type InputProps = Omit<React.ComponentPropsWithRef<"input">, "prefix"> &
   InputHeaderProps & {
+    small?: boolean
     label?: string
     deletable?: boolean
-    key?: string
     onDelete?: MouseEventHandler<HTMLSpanElement>
     onChange?: ChangeEventHandler<HTMLInputElement>
     onFocus?: FocusEventHandler<HTMLInputElement>
-    prefix?: string
-    startAdornment?: React.ReactNode
+    errors?: { [x: string]: unknown }
+    prefix?: React.ReactNode
     props?: React.HTMLAttributes<HTMLDivElement>
   }
 
-const InputField = React.forwardRef(
+const InputField = React.forwardRef<HTMLInputElement, InputProps>(
   (
     {
+      small,
       placeholder,
       label,
       name,
-      key,
       required,
       deletable,
       onDelete,
@@ -38,18 +39,21 @@ const InputField = React.forwardRef(
       tooltipContent,
       tooltip,
       prefix,
+      errors,
       props,
       className,
-      startAdornment,
       ...fieldProps
     }: InputProps,
     ref
   ) => {
-    const inputRef = useRef(null)
+    const inputRef = useRef<HTMLInputElement | null>(null)
 
-    useImperativeHandle(ref, () => inputRef.current)
+    useImperativeHandle<HTMLInputElement | null, HTMLInputElement | null>(
+      ref,
+      () => inputRef.current
+    )
 
-    const onClickChevronUp = () => {
+    const onNumberIncrement = () => {
       inputRef.current?.stepUp()
       if (onChange) {
         inputRef.current?.dispatchEvent(
@@ -62,7 +66,7 @@ const InputField = React.forwardRef(
       }
     }
 
-    const onClickChevronDown = () => {
+    const onNumberDecrement = () => {
       inputRef.current?.stepDown()
       if (onChange) {
         inputRef.current?.dispatchEvent(
@@ -76,28 +80,35 @@ const InputField = React.forwardRef(
     }
 
     return (
-      <InputContainer
-        className={className}
-        key={name}
-        onClick={() => !fieldProps.disabled && inputRef?.current?.focus()}
-        {...props}
-      >
+      <div className={clsx("w-full", className)} {...props}>
         {label && (
-          <InputHeader {...{ label, required, tooltipContent, tooltip }} />
+          <InputHeader
+            {...{ label, required, tooltipContent, tooltip }}
+            className="mb-xsmall"
+          />
         )}
-        <div className="w-full flex items-center mt-1">
-          {startAdornment ? (
-            <div className="text-grey-40 mr-1.5">{startAdornment}</div>
-          ) : prefix ? (
+        <div
+          className={clsx(
+            "w-full flex items-center bg-grey-5 border border-gray-20 px-small py-xsmall rounded-rounded focus-within:shadow-input focus-within:border-violet-60",
+            {
+              "border-rose-50 focus-within:shadow-cta focus-within:shadow-rose-60/10 focus-within:border-rose-50":
+                errors && name && errors[name],
+            },
+            small ? "h-8" : "h-10"
+          )}
+        >
+          {prefix ? (
             <span className="text-grey-40 mr-2xsmall">{prefix}</span>
           ) : null}
           <input
-            className="bg-inherit outline-none outline-0 w-full remove-number-spinner leading-base text-grey-90 font-normal caret-violet-60 placeholder-grey-40"
+            className={clsx(
+              "bg-transparent outline-none outline-0 w-full remove-number-spinner leading-base text-grey-90 font-normal caret-violet-60 placeholder-grey-40",
+              { "text-small": small, "pt-[1px]": small }
+            )}
             ref={inputRef}
             autoComplete="off"
             name={name}
-            key={key || name}
-            placeholder={placeholder || "Placeholder"}
+            placeholder={placeholder || `${label}...` || "Placeholder"}
             onChange={onChange}
             onFocus={onFocus}
             required={required}
@@ -105,31 +116,38 @@ const InputField = React.forwardRef(
           />
 
           {deletable && (
-            <span onClick={onDelete} className="cursor-pointer ml-2">
+            <button
+              onClick={onDelete}
+              className="flex items-center justify-center w-4 h-4 pb-px ml-2 outline-none cursor-pointer text-grey-50 hover:bg-grey-10 focus:bg-grey-20 rounded-soft"
+              type="button"
+            >
               &times;
-            </span>
+            </button>
           )}
 
           {fieldProps.type === "number" && (
-            <div className="flex self-end">
-              <span
-                onClick={onClickChevronDown}
+            <div className="flex items-center self-end h-full">
+              <button
+                onClick={onNumberDecrement}
                 onMouseDown={(e) => e.preventDefault()}
-                className="mr-2 text-grey-50 w-4 h-4 hover:bg-grey-10 rounded-soft cursor-pointer"
+                className="w-4 h-4 mr-2 outline-none cursor-pointer text-grey-50 hover:bg-grey-10 focus:bg-grey-20 rounded-soft"
+                type="button"
               >
                 <MinusIcon size={16} />
-              </span>
-              <span
+              </button>
+              <button
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={onClickChevronUp}
-                className="text-grey-50 w-4 h-4 hover:bg-grey-10 rounded-soft cursor-pointer"
+                onClick={onNumberIncrement}
+                className="w-4 h-4 outline-none cursor-pointer text-grey-50 hover:bg-grey-10 focus:bg-grey-20 rounded-soft"
+                type="button"
               >
                 <PlusIcon size={16} />
-              </span>
+              </button>
             </div>
           )}
         </div>
-      </InputContainer>
+        <InputError name={name} errors={errors} />
+      </div>
     )
   }
 )

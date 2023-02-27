@@ -1,18 +1,8 @@
-import React, {
-  ReactNode,
-  useContext,
-  useEffect,
-  useReducer,
-  useRef,
-  useState,
-} from "react"
-import Modal, { ModalProps } from "../../molecules/modal"
-import Button from "../../fundamentals/button"
-import Medusa from "../../../services/api"
-import useMedusa from "../../../hooks/use-medusa"
-import InputField from "../../molecules/input"
-import ArrowLeftIcon from "../../fundamentals/icons/arrow-left-icon"
 import clsx from "clsx"
+import React, { ReactNode, useContext, useReducer } from "react"
+import Button from "../../fundamentals/button"
+import ArrowLeftIcon from "../../fundamentals/icons/arrow-left-icon"
+import Modal, { ModalProps } from "../../molecules/modal"
 
 enum LayeredModalActions {
   PUSH,
@@ -20,16 +10,17 @@ enum LayeredModalActions {
   RESET,
 }
 
-type LayeredModalScreen = {
+export type LayeredModalScreen = {
   title: string
+  subtitle?: string
   onBack: () => void
-  onConfirm: () => void
+  onConfirm?: () => void
   view: ReactNode
 }
 
 export type ILayeredModalContext = {
   screens: LayeredModalScreen[]
-  push: (screen: ReactNode) => void
+  push: (screen: LayeredModalScreen) => void
   pop: () => void
   reset: () => void
 }
@@ -46,12 +37,10 @@ export const LayeredModalContext = React.createContext(defaultContext)
 const reducer = (state, action) => {
   switch (action.type) {
     case LayeredModalActions.PUSH: {
-      state.screens.push(action.payload)
-      return { ...state }
+      return { ...state, screens: [...state.screens, action.payload] }
     }
     case LayeredModalActions.POP: {
-      state.screens.pop()
-      return { ...state }
+      return { ...state, screens: state.screens.slice(0, -1) }
     }
     case LayeredModalActions.RESET: {
       return { ...state, screens: [] }
@@ -88,16 +77,11 @@ export const LayeredModalProvider = ({ children }) => {
   )
 }
 
-const addProp = (children, prop) => {
-  return React.Children.map(children, (child) =>
-    React.cloneElement(child, prop)
-  )
-}
-
 const LayeredModal: React.FC<LayeredModalProps> = ({
   context,
   children,
   handleClose,
+  open,
   isLargeModal = true,
 }) => {
   const emptyScreensAndClose = () => {
@@ -107,15 +91,19 @@ const LayeredModal: React.FC<LayeredModalProps> = ({
 
   const screen = context.screens[context.screens.length - 1]
   return (
-    <Modal isLargeModal={isLargeModal} handleClose={emptyScreensAndClose}>
+    <Modal
+      open={open}
+      isLargeModal={isLargeModal}
+      handleClose={emptyScreensAndClose}
+    >
       <Modal.Body
         className={clsx(
-          "transition-transform translate-x-full flex flex-col justify-between duration-200",
+          "flex flex-col justify-between transition-transform duration-200",
           {
             "translate-x-0": typeof screen !== "undefined",
+            "translate-x-full": typeof screen === "undefined",
           }
         )}
-        isLargeModal={isLargeModal}
       >
         {screen ? (
           <>
@@ -124,12 +112,19 @@ const LayeredModal: React.FC<LayeredModalProps> = ({
                 <Button
                   variant="ghost"
                   size="small"
-                  className="text-grey-50 w-8 h-8"
+                  className="h-8 w-8 text-grey-50"
                   onClick={screen.onBack}
                 >
                   <ArrowLeftIcon size={20} />
                 </Button>
-                <h2 className="inter-xlarge-semibold ml-5">{screen.title}</h2>
+                <div className="flex items-center gap-x-2xsmall">
+                  <h2 className="inter-xlarge-semibold ml-5">{screen.title}</h2>
+                  {screen.subtitle && (
+                    <span className="inter-xlarge-regular text-grey-50">
+                      ({screen.subtitle})
+                    </span>
+                  )}
+                </div>
               </div>
             </Modal.Header>
             {screen.view}
@@ -148,7 +143,7 @@ const LayeredModal: React.FC<LayeredModalProps> = ({
             "hidden opacity-0 delay-500": typeof screen !== "undefined",
           })}
         >
-          {addProp(children, { isLargeModal })}
+          {children}
         </div>
       </div>
     </Modal>

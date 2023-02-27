@@ -1,11 +1,9 @@
 import clsx from "clsx"
-import { navigate } from "gatsby"
-import React, { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 
 import { SalesChannel } from "@medusajs/medusa"
 import {
   useAdminDeleteSalesChannel,
-  useAdminProducts,
   useAdminSalesChannels,
   useAdminStore,
   useAdminUpdateSalesChannel,
@@ -13,8 +11,9 @@ import {
 
 import EditSalesChannel from "../form/edit-sales-channel"
 import AddSalesChannelModal from "../form/add-sales-channel"
-import Actionables from "../../../components/molecules/actionables"
-import DeletePrompt from "../../../components/organisms/delete-prompt"
+import Actionables, {
+  ActionType,
+} from "../../../components/molecules/actionables"
 import PlusIcon from "../../../components/fundamentals/icons/plus-icon"
 import EditIcon from "../../../components/fundamentals/icons/edit-icon"
 import TrashIcon from "../../../components/fundamentals/icons/trash-icon"
@@ -29,6 +28,8 @@ import TwoSplitPane from "../../../components/templates/two-split-pane"
 import Fade from "../../../components/atoms/fade-wrapper"
 import Breadcrumb from "../../../components/molecules/breadcrumb"
 import useToggleState from "../../../hooks/use-toggle-state"
+import { useNavigate, useParams } from "react-router-dom"
+import useImperativeDialog from "../../../hooks/use-imperative-dialog"
 
 type ListIndicatorProps = { isActive: boolean }
 
@@ -96,8 +97,8 @@ function SalesChannelTile(props: SalesChannelTileProps) {
     >
       <div className="flex gap-2 overflow-hidden">
         <ListIndicator isActive={isSelected} />
-        <div className="overflow-hidden block truncate">
-          <h3 className="font-semibold text-grey-90 leading-5 mb-1">
+        <div className="block overflow-hidden truncate">
+          <h3 className="mb-1 font-semibold leading-5 text-grey-90">
             {salesChannel.name}
           </h3>
           <span
@@ -146,11 +147,11 @@ function SalesChannelsHeader(props: SalesChannelsHeaderProps) {
     <div className="h-[55px] mb-6 overflow-hidden">
       <div className={clsx("transition-all duration-200", classes)}>
         <div className="h-[55px]">
-          <div className="flex justify-between items-center mb-1">
+          <div className="flex items-center justify-between mb-1">
             <h2 className="font-semibold text-xlarge text-grey-90">
               Sales channels
             </h2>
-            <div className="flex justify-between items-center gap-4">
+            <div className="flex items-center justify-between gap-4">
               <SearchIcon
                 size={15}
                 onClick={() => setShowFilter(true)}
@@ -175,7 +176,7 @@ function SalesChannelsHeader(props: SalesChannelsHeaderProps) {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Search by title or description"
-            className="bg-inherit outline-none outline-0 w-full remove-number-spinner leading-base text-grey-90 font-normal caret-violet-60 placeholder-grey-40"
+            className="w-full font-normal outline-none bg-inherit outline-0 remove-number-spinner leading-base text-grey-90 caret-violet-60 placeholder-grey-40"
             onBlur={() => setShowFilter(!!filterText)}
             autoComplete="off"
           />
@@ -234,13 +235,20 @@ type SalesChannelDetailsHeaderProps = {
   openUpdateModal: () => void
   resetDetails: () => void
   showProductsAdd: () => void
+  isDefault: boolean
 }
 
 /**
  * Sales channels details header.
  */
 function SalesChannelDetailsHeader(props: SalesChannelDetailsHeaderProps) {
-  const { salesChannel, openUpdateModal, resetDetails, showProductsAdd } = props
+  const {
+    isDefault,
+    salesChannel,
+    openUpdateModal,
+    resetDetails,
+    showProductsAdd,
+  } = props
 
   const { mutate: deleteSalesChannel } = useAdminDeleteSalesChannel(
     salesChannel.id
@@ -250,33 +258,54 @@ function SalesChannelDetailsHeader(props: SalesChannelDetailsHeaderProps) {
     salesChannel.id
   )
 
-  const [showDelete, setShowDelete] = useState(false)
+  const confirmation = useImperativeDialog()
 
-  const actions = [
-    {
-      label: "Edit general info",
-      icon: <EditIcon size="20" />,
-      onClick: openUpdateModal,
-    },
-    {
-      label: "Add products",
-      icon: <PlusIcon />,
-      onClick: () => showProductsAdd(),
-    },
-    {
-      label: "Delete channel",
-      icon: <TrashIcon size={20} />,
-      variant: "danger",
-      onClick: () => setShowDelete(true),
-    },
-  ]
+  const onDelete = async () => {
+    const confirmed = await confirmation({
+      text: "Are you sure you want to delete this sales channel? The setup you made will be gone forever.",
+      heading: "Delete Channel",
+      extraConfirmation: true,
+      entityName: salesChannel.name,
+    })
+
+    if (confirmed) {
+      deleteSalesChannel()
+      resetDetails()
+    }
+  }
+
+  const actions = useMemo(() => {
+    const _actions: ActionType[] = [
+      {
+        label: "Edit general info",
+        icon: <EditIcon size="20" />,
+        onClick: openUpdateModal,
+      },
+      {
+        label: "Add products",
+        icon: <PlusIcon />,
+        onClick: () => showProductsAdd(),
+      },
+    ]
+
+    if (!isDefault) {
+      _actions.push({
+        label: "Delete channel",
+        icon: <TrashIcon size={20} />,
+        variant: "danger",
+        onClick: onDelete,
+      })
+    }
+
+    return _actions
+  }, [openUpdateModal])
 
   return (
-    <div className="flex justify-between items-center">
-      <h2 className="font-semibold text-xlarge text-grey-90 mb-4">
+    <div className="flex items-center justify-between">
+      <h2 className="mb-4 font-semibold text-xlarge text-grey-90">
         {salesChannel.name}
       </h2>
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         <StatusSelector
           onChange={() =>
             updateSalesChannel({ is_disabled: !salesChannel.is_disabled })
@@ -287,20 +316,6 @@ function SalesChannelDetailsHeader(props: SalesChannelDetailsHeaderProps) {
         />
         <Actionables forceDropdown={true} actions={actions} />
       </div>
-
-      {showDelete && (
-        <DeletePrompt
-          handleClose={() => setShowDelete(false)}
-          onDelete={async () => {
-            deleteSalesChannel()
-            resetDetails()
-          }}
-          confirmText="Yes, delete"
-          successText="Sales channel deleted"
-          text={`Are you sure you want to delete "${salesChannel.name}" sales channel?`}
-          heading="Delete channel"
-        />
-      )}
     </div>
   )
 }
@@ -308,24 +323,24 @@ function SalesChannelDetailsHeader(props: SalesChannelDetailsHeaderProps) {
 type SalesChannelDetailsProps = {
   salesChannel: SalesChannel
   resetDetails: () => void
+  isDefault: boolean
 }
 
 /**
  * Sales channels details container.
  */
 function SalesChannelDetails(props: SalesChannelDetailsProps) {
-  const { resetDetails, salesChannel } = props
+  const { resetDetails, salesChannel, isDefault } = props
 
-  const [showUpdateModal, openUpdateModal, closeUpdateModal] = useToggleState(
-    false
-  )
-  const [showAddProducts, showProductsAdd, hideProductsAdd] = useToggleState(
-    false
-  )
+  const [showUpdateModal, openUpdateModal, closeUpdateModal] =
+    useToggleState(false)
+  const [showAddProducts, showProductsAdd, hideProductsAdd] =
+    useToggleState(false)
 
   return (
     <div className="col-span-2 rounded-rounded border bg-grey-0 border-grey-20 px-8 py-6 h-[968px]">
       <SalesChannelDetailsHeader
+        isDefault={isDefault}
         resetDetails={resetDetails}
         salesChannel={salesChannel}
         openUpdateModal={openUpdateModal}
@@ -354,21 +369,19 @@ function SalesChannelDetails(props: SalesChannelDetailsProps) {
   )
 }
 
-type DetailsProps = { id: string }
-
 /**
  * Sales channels details page container.
  */
-function Details(props: DetailsProps) {
-  const { id: routeSalesChannelId } = props
+function Details() {
+  const { id: routeSalesChannelId } = useParams()
+
   const [filterText, setFilterText] = useState<string>()
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  const [
-    activeSalesChannel,
-    setActiveSalesChannel,
-  ] = useState<SalesChannel | null>()
+  const [activeSalesChannel, setActiveSalesChannel] =
+    useState<SalesChannel | null>()
 
+  const navigate = useNavigate()
   const { store } = useAdminStore()
   const { sales_channels } = useAdminSalesChannels()
 
@@ -455,6 +468,9 @@ function Details(props: DetailsProps) {
         />
         {activeSalesChannel && (
           <SalesChannelDetails
+            isDefault={
+              activeSalesChannel.id === store?.default_sales_channel_id
+            }
             salesChannel={
               sales_channels.find((sc) => sc.id === activeSalesChannel.id)!
             }

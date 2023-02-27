@@ -11,7 +11,7 @@ type ItemsShippedProps = {
 const ItemsShipped: React.FC<ItemsShippedProps> = ({ event }) => {
   const title =
     event.sourceType === "claim"
-      ? "Claim Items Shipped"
+      ? "Replacement Items Shipped"
       : event.sourceType === "exchange"
       ? "Exchange Items Shipped"
       : "Items Shipped"
@@ -20,7 +20,9 @@ const ItemsShipped: React.FC<ItemsShippedProps> = ({ event }) => {
     icon: <TruckIcon size={20} />,
     time: event.time,
     title: title,
-    children: event.items.map((item) => <EventItemContainer item={item} />),
+    children: event.items.map((item, index) => (
+      <EventItemContainer item={item} key={index} />
+    )),
     noNotification: event.noNotification,
     isFirst: event.first,
   }

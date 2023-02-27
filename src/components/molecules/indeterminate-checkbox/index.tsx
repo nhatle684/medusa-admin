@@ -1,19 +1,24 @@
 import clsx from "clsx"
-import React, { ChangeEvent, useImperativeHandle } from "react"
+import React, { useImperativeHandle } from "react"
+
 import CheckIcon from "../../fundamentals/icons/check-icon"
 
 type IndeterminateCheckboxProps = {
-  onChange?: (e: ChangeEvent) => void
+  type?: "checkbox" | "radio"
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
   checked?: boolean
   title?: string
   indeterminate?: boolean
   className?: React.HTMLAttributes<HTMLInputElement>["className"]
+  name?: string
+  disabled?: boolean // NOTE: only visual, still have to filter disabled ids out
 }
 
 const IndeterminateCheckbox = React.forwardRef<
   HTMLInputElement,
   IndeterminateCheckboxProps
 >(({ indeterminate = false, className, checked, ...rest }, ref) => {
+  const type = rest.type || "checkbox"
   const innerRef = React.useRef<HTMLInputElement | null>(null)
 
   useImperativeHandle<HTMLInputElement | null, HTMLInputElement | null>(
@@ -28,17 +33,35 @@ const IndeterminateCheckbox = React.forwardRef<
   }, [innerRef, indeterminate])
 
   const handleClick = () => {
-    if (innerRef.current) {
+    if (!rest.disabled && innerRef.current) {
       innerRef.current.click()
     }
   }
 
+  if (type === "radio") {
+    return (
+      <div className="flex h-full items-center">
+        <input
+          className={clsx({ "accent-violet-60": checked })}
+          type="radio"
+          checked={checked}
+          ref={innerRef}
+          {...rest}
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="items-center h-full flex">
+    <div className="flex h-full items-center">
       <div
         onClick={handleClick}
-        className={`w-5 h-5 flex justify-center text-grey-0 border-grey-30 border cursor-pointer rounded-base ${
-          checked && "bg-violet-60"
+        className={`flex h-5 w-5 cursor-pointer justify-center rounded-base border border-grey-30 text-grey-0 ${
+          rest.disabled
+            ? checked
+              ? "bg-gray-300"
+              : ""
+            : checked && "bg-violet-60"
         }`}
       >
         <span className="self-center">
@@ -48,7 +71,7 @@ const IndeterminateCheckbox = React.forwardRef<
       <input
         type="checkbox"
         className={clsx("hidden", className)}
-        checked={checked}
+        defaultChecked={checked}
         ref={innerRef}
         {...rest}
       />

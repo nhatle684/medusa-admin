@@ -1,10 +1,20 @@
-import { Return, Swap } from "@medusajs/medusa"
+import {
+  ClaimOrder,
+  Order,
+  OrderEdit,
+  Refund,
+  Return,
+  Swap,
+} from "@medusajs/medusa"
 import {
   useAdminNotes,
   useAdminNotifications,
   useAdminOrder,
+  useAdminOrderEdits,
 } from "medusa-react"
-import { useMemo } from "react"
+import { useContext, useMemo } from "react"
+import { FeatureFlagContext } from "../context/feature-flag"
+import { orderReturnableFields } from "../domain/orders/details/utils/order-returnable-fields"
 
 export interface TimelineEvent {
   id: string
@@ -22,11 +32,33 @@ export interface TimelineEvent {
     | "fulfilled"
     | "canceled"
     | "return"
+    | "refund"
     | "exchange"
     | "exchange_fulfilled"
-    | "notification"
     | "claim"
-    | "refund"
+    | "edit-created"
+    | "edit-requested"
+    | "edit-declined"
+    | "edit-canceled"
+    | "edit-confirmed"
+    | "payment-required"
+    | "refund-required"
+}
+
+export interface RefundRequiredEvent extends TimelineEvent {
+  currency_code: string
+}
+
+export interface PaymentRequiredEvent extends TimelineEvent {
+  currency_code: string
+}
+
+export interface OrderEditEvent extends TimelineEvent {
+  edit: OrderEdit
+}
+
+export interface OrderEditRequestedEvent extends OrderEditEvent {
+  email: string
 }
 
 interface CancelableEvent {
@@ -71,6 +103,7 @@ export interface RefundEvent extends TimelineEvent {
   reason: string
   currencyCode: string
   note?: string
+  refund: Refund
 }
 
 enum ReturnStatus {
@@ -85,6 +118,7 @@ export interface ReturnEvent extends TimelineEvent {
   status: ReturnStatus
   currentStatus?: ReturnStatus
   raw: Return
+  order: Order
   refunded?: boolean
 }
 
@@ -98,22 +132,23 @@ export interface ExchangeEvent extends TimelineEvent, CancelableEvent {
   fulfillmentStatus: string
   returnStatus: string
   returnId: string
-  returnItems: ReturnItem[]
+  returnItems: (ReturnItem | undefined)[]
   newItems: OrderItem[]
   exchangeCartId?: string
   raw: Swap
 }
 
 export interface ClaimEvent extends TimelineEvent, CancelableEvent {
+  returnStatus: ReturnStatus
   fulfillmentStatus?: string
-  refundStatus?: string
-  refundAmount?: number
+  refundStatus: string
+  refundAmount: number
   currencyCode: string
   claimItems: OrderItem[]
   newItems: OrderItem[]
   claimType: string
-  claim: any
-  order: any
+  claim: ClaimOrder
+  order: Order
 }
 
 export interface NotificationEvent extends TimelineEvent {
@@ -121,23 +156,22 @@ export interface NotificationEvent extends TimelineEvent {
   title: string
 }
 
-export const useBuildTimelime = (orderId: string) => {
-  const {
-    order,
-    isLoading: orderLoading,
-    isError: orderError,
-    refetch,
-  } = useAdminOrder(orderId)
-  const {
-    notes,
-    isLoading: notesLoading,
-    isError: notesError,
-  } = useAdminNotes({ resource_id: orderId, limit: 100, offset: 0 })
-  const {
-    notifications,
-    isLoading: notificationsLoading,
-    isError: notificationsError,
-  } = useAdminNotifications({ resource_id: orderId })
+export const useBuildTimeline = (orderId: string) => {
+  const { order, refetch } = useAdminOrder(orderId, {
+    fields: orderReturnableFields,
+  })
+
+  const { order_edits: edits } = useAdminOrderEdits({ order_id: orderId })
+
+  const { isFeatureEnabled } = useContext(FeatureFlagContext)
+
+  const { notes } = useAdminNotes({
+    resource_id: orderId,
+    limit: 100,
+    offset: 0,
+  })
+
+  const { notifications } = useAdminNotifications({ resource_id: orderId })
 
   const events: TimelineEvent[] | undefined = useMemo(() => {
     if (!order) {
@@ -159,6 +193,78 @@ export const useBuildTimelime = (orderId: string) => {
     }
 
     const events: TimelineEvent[] = []
+
+    events.push({
+      id: "refund-event",
+      time: new Date(),
+      orderId: order.id,
+      type: "refund-required",
+      currency_code: order.currency_code,
+    } as RefundRequiredEvent)
+
+    events.push({
+      id: "payment-required",
+      time: new Date(),
+      orderId: order.id,
+      type: "payment-required",
+      currency_code: order.currency_code,
+    } as PaymentRequiredEvent)
+
+    if (isFeatureEnabled("order_editing")) {
+      for (const edit of edits || []) {
+        events.push({
+          id: edit.id,
+          time: edit.created_at,
+          orderId: order.id,
+          type: "edit-created",
+          edit: edit,
+        } as OrderEditEvent)
+
+        if (edit.requested_at) {
+          events.push({
+            id: edit.id,
+            time: edit.requested_at,
+            orderId: order.id,
+            type: "edit-requested",
+            email: order.email,
+            edit: edit,
+          } as OrderEditRequestedEvent)
+        }
+
+        // // declined
+        if (edit.declined_at) {
+          events.push({
+            id: edit.id,
+            time: edit.declined_at,
+            orderId: order.id,
+            type: "edit-declined",
+            edit: edit,
+          } as OrderEditEvent)
+        }
+
+        // // canceled
+        if (edit.canceled_at) {
+          events.push({
+            id: edit.id,
+            time: edit.canceled_at,
+            orderId: order.id,
+            type: "edit-canceled",
+            edit: edit,
+          } as OrderEditEvent)
+        }
+
+        // confirmed
+        if (edit.confirmed_at) {
+          events.push({
+            id: edit.id,
+            time: edit.confirmed_at,
+            orderId: order.id,
+            type: "edit-confirmed",
+            edit: edit,
+          } as OrderEditEvent)
+        }
+      }
+    }
 
     events.push({
       id: `${order.id}-placed`,
@@ -201,6 +307,7 @@ export const useBuildTimelime = (orderId: string) => {
         reason: event.reason,
         time: event.created_at,
         type: "refund",
+        refund: event,
       } as RefundEvent)
     }
 
@@ -236,7 +343,8 @@ export const useBuildTimelime = (orderId: string) => {
         type: "return",
         noNotification: event.no_notification,
         orderId: order.id,
-        raw: (event as unknown) as Return,
+        order: order,
+        raw: event as unknown as Return,
         refunded: getWasRefundClaim(event.claim_order_id, order),
       } as ReturnEvent)
 
@@ -247,8 +355,10 @@ export const useBuildTimelime = (orderId: string) => {
           status: "requested",
           time: event.created_at,
           type: "return",
+          raw: event as unknown as Return,
           currentStatus: event.status,
           noNotification: event.no_notification,
+          order: order,
           orderId: order.id,
         } as ReturnEvent)
       }
@@ -272,7 +382,7 @@ export const useBuildTimelime = (orderId: string) => {
           event.payment_status !== "captured" ? event.cart_id : undefined,
         canceledAt: event.canceled_at,
         orderId: event.order_id,
-        raw: (event as unknown) as Swap,
+        raw: event as unknown as Swap,
       } as ExchangeEvent)
 
       if (
@@ -317,6 +427,7 @@ export const useBuildTimelime = (orderId: string) => {
             },
           })),
           fulfillmentStatus: claim.fulfillment_status,
+          returnStatus: claim.return_order?.status,
           refundStatus: claim.payment_status,
           refundAmount: claim.refund_amount,
           currencyCode: order.currency_code,
@@ -411,17 +522,7 @@ export const useBuildTimelime = (orderId: string) => {
     events[events.length - 1].first = true
 
     return events
-  }, [
-    order,
-    orderLoading,
-    orderError,
-    notes,
-    notesLoading,
-    notesError,
-    notifications,
-    notificationsLoading,
-    notificationsError,
-  ])
+  }, [order, edits, notes, notifications, isFeatureEnabled])
 
   return { events, refetch }
 }

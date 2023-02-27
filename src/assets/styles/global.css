@@ -1,5 +1,6 @@
 @tailwind base;
 @tailwind components;
+@tailwind utilities;
 
 @font-face {
   font-family: "Inter";
@@ -31,6 +32,12 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
+}
+
+@layer base {
+  html {
+    @apply overflow-hidden;
+  }
 }
 
 @layer components {
@@ -227,6 +234,10 @@
     @apply w-min py-0.5 px-2 rounded-rounded inter-small-semibold;
   }
 
+  .badge-disabled {
+    @apply bg-grey-50 bg-opacity-10 text-grey-50;
+  }
+
   .badge-primary {
     @apply bg-violet-60 bg-opacity-10 text-violet-60;
   }
@@ -372,9 +383,18 @@
   }
 }
 
-@tailwind utilities;
-
 @layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
   .vice-city {
     @apply bg-gradient-to-tr from-vice-start to-vice-stop;
   }
@@ -413,6 +433,13 @@
   .col-tree:last-child .bottom-half-dash {
     @apply border-none;
   }
+}
+
+.scrolling-touch {
+  -webkit-overflow-scrolling: touch;
+}
+.scrolling-auto {
+  -webkit-overflow-scrolling: auto;
 }
 
 /* Classes to remove number spinners from inputs of type number */

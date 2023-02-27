@@ -1,9 +1,9 @@
-import { navigate } from "gatsby"
 import { useAdminResetPassword } from "medusa-react"
 import qs from "qs"
 import React, { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { decodeToken } from "react-jwt"
+import { useLocation, useNavigate } from "react-router-dom"
 import Button from "../components/fundamentals/button"
 import MedusaIcon from "../components/fundamentals/icons/medusa-icon"
 import SigninInput from "../components/molecules/input-signin"
@@ -16,10 +16,12 @@ type formValues = {
   repeat_password: string
 }
 
-const ResetPasswordPage = ({ location }) => {
+const ResetPasswordPage = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const parsed = qs.parse(location.search.substring(1))
 
-  let token: Object | null = null
+  let token: { email: string } | null = null
   if (parsed?.token) {
     try {
       token = decodeToken(parsed.token as string)
@@ -31,7 +33,7 @@ const ResetPasswordPage = ({ location }) => {
   const [passwordMismatch, setPasswordMismatch] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
-  const email = token?.email || parsed?.email || ""
+  const email = (token?.email || parsed?.email || "") as string
 
   const { register, handleSubmit, formState } = useForm<formValues>({
     defaultValues: {
@@ -114,15 +116,13 @@ const ResetPasswordPage = ({ location }) => {
                 <SigninInput
                   placeholder="Password"
                   type={"password"}
-                  name="password"
-                  ref={register({ required: true })}
+                  {...register("password", { required: true })}
                   autoComplete="new-password"
                 />
                 <SigninInput
                   placeholder="Confirm password"
                   type={"password"}
-                  name="repeat_password"
-                  ref={register({ required: true })}
+                  {...register("repeat_password", { required: true })}
                   autoComplete="new-password"
                   className="mb-0"
                 />

@@ -1,7 +1,7 @@
-import { navigate } from "gatsby"
 import { useAdminLogin } from "medusa-react"
 import React, { useState } from "react"
 import { useForm } from "react-hook-form"
+import { useNavigate } from "react-router-dom"
 import Button from "../../fundamentals/button"
 import SigninInput from "../../molecules/input-signin"
 
@@ -17,6 +17,7 @@ type LoginCardProps = {
 const LoginCard: React.FC<LoginCardProps> = ({ toResetPassword }) => {
   const [isInvalidLogin, setIsInvalidLogin] = useState(false)
   const { register, handleSubmit, reset } = useForm<FormValues>()
+  const navigate = useNavigate()
   const login = useAdminLogin()
 
   const onSubmit = (values: FormValues) => {
@@ -44,15 +45,13 @@ const LoginCard: React.FC<LoginCardProps> = ({ toResetPassword }) => {
         </span>
         <SigninInput
           placeholder="Email..."
-          name="email"
-          ref={register({ required: true })}
+          {...register("email", { required: true })}
           autoComplete="email"
         />
         <SigninInput
           placeholder="Password..."
           type={"password"}
-          name="password"
-          ref={register({ required: true })}
+          {...register("password", { required: true })}
           autoComplete="current-password"
         />
         {isInvalidLogin && (

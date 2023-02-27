@@ -1,35 +1,31 @@
-import { Discount } from "@medusajs/medusa"
-import { navigate } from "gatsby"
 import * as React from "react"
+import { useWatch } from "react-hook-form"
+import { useNavigate } from "react-router-dom"
 import Button from "../../../../components/fundamentals/button"
 import CrossIcon from "../../../../components/fundamentals/icons/cross-icon"
 import FocusModal from "../../../../components/molecules/modal/focus-modal"
 import Accordion from "../../../../components/organisms/accordion"
 import useNotification from "../../../../hooks/use-notification"
 import { getErrorMessage } from "../../../../utils/error-messages"
+import { DiscountRuleType } from "../../types"
 import { useDiscountForm } from "./form/discount-form-context"
 import { DiscountFormValues } from "./form/mappers"
 import { useFormActions } from "./form/use-form-actions"
-import Conditions from "./sections/conditions"
+import DiscountNewConditions from "./sections/conditions"
 import Configuration from "./sections/configuration"
+import DiscountAllocation from "./sections/discount-allocation"
+import DiscountType from "./sections/discount-type"
 import General from "./sections/general"
-import PromotionType from "./sections/promotion-type"
 
 type DiscountFormProps = {
-  discount?: Discount
-  isEdit?: boolean
-  additionalOpen?: string[]
   closeForm?: () => void
 }
 
-const DiscountForm: React.FC<DiscountFormProps> = ({
-  discount,
-  closeForm,
-  additionalOpen = [],
-  isEdit = false,
-}) => {
+
+const DiscountForm = ({ closeForm }: DiscountFormProps) => {
+  const navigate = useNavigate()
   const notification = useNotification()
-  const { handleSubmit, handleReset } = useDiscountForm()
+  const { handleSubmit, handleReset, control } = useDiscountForm()
 
   const { onSaveAsActive, onSaveAsInactive } = useFormActions()
 
@@ -43,19 +39,14 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
   }
 
   const submitGhost = async (data: DiscountFormValues) => {
-    if (!isEdit) {
-      onSaveAsInactive(data)
-        .then(() => {
-          closeFormModal()
-          handleReset()
-        })
-        .catch((error) => {
-          notification("Error", getErrorMessage(error), "error")
-        })
-    } else {
-      closeFormModal()
-      handleReset()
-    }
+    onSaveAsInactive(data)
+      .then(() => {
+        closeFormModal()
+        handleReset()
+      })
+      .catch((error) => {
+        notification("Error", getErrorMessage(error), "error")
+      })
   }
 
   const submitCTA = async (data: DiscountFormValues) => {
@@ -67,6 +58,11 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
       notification("Error", getErrorMessage(error), "error")
     }
   }
+
+  const discountType = useWatch({
+    control,
+    name: "rule.type",
+  })
 
   return (
     <FocusModal>
@@ -95,20 +91,18 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
               onClick={handleSubmit(submitCTA)}
               className="rounded-rounded"
             >
-              {isEdit ? "Save changes" : "Publish discount"}
+              Publish discount
             </Button>
           </div>
         </div>
       </FocusModal.Header>
       <FocusModal.Main>
         <div className="flex justify-center mb-[25%]">
-          <div className="medium:w-7/12 large:w-6/12 small:w-4/5 w-full pt-16">
-            <h1 className="inter-xlarge-semibold">
-              {isEdit ? "Edit discount" : "Create new discount"}
-            </h1>
+          <div className="max-w-[700px] w-full pt-16">
+            <h1 className="inter-xlarge-semibold">Create new discount</h1>
             <Accordion
               className="pt-7 text-grey-90"
-              defaultValue={["discount-type", ...additionalOpen]}
+              defaultValue={["promotion-type"]}
               type="multiple"
             >
               <Accordion.Item
@@ -118,7 +112,15 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
                 tooltip="Select a discount type"
                 value="promotion-type"
               >
-                <PromotionType />
+                <DiscountType />
+                {discountType === DiscountRuleType.FIXED && (
+                  <div className="mt-xlarge">
+                    <h3 className="inter-base-semibold">
+                      Allocation<span className="text-rose-50">*</span>
+                    </h3>
+                    <DiscountAllocation />
+                  </div>
+                )}
               </Accordion.Item>
               <Accordion.Item
                 title="General"
@@ -126,7 +128,7 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
                 value="general"
                 forceMountContent
               >
-                <General discount={discount} />
+                <General />
               </Accordion.Item>
               <Accordion.Item
                 forceMountContent
@@ -134,7 +136,7 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
                 value="configuration"
                 description="Discount code applies from you hit the publish button and forever if left untouched."
               >
-                <Configuration promotion={discount} isEdit={isEdit} />
+                <Configuration />
               </Accordion.Item>
               <Accordion.Item
                 forceMountContent
@@ -143,7 +145,7 @@ const DiscountForm: React.FC<DiscountFormProps> = ({
                 value="conditions"
                 tooltip="Add conditions to your Discount"
               >
-                <Conditions discount={discount} />
+                <DiscountNewConditions />
               </Accordion.Item>
             </Accordion>
           </div>

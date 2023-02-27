@@ -27,7 +27,7 @@ import { Option } from "../../../../types/shared"
 import { getErrorMessage } from "../../../../utils/error-messages"
 import { formatAmountWithSymbol } from "../../../../utils/prices"
 import RMASelectProductSubModal from "../rma-sub-modals/products"
-import { filterItems } from "../utils/create-filtering"
+import { getAllReturnableItems } from "../utils/create-filtering"
 
 type SwapMenuProps = {
   order: Omit<Order, "beforeInsert">
@@ -68,18 +68,16 @@ const SwapMenu: React.FC<SwapMenuProps> = ({ order, onDismiss }) => {
   // Includes both order items and swap items
   const allItems = useMemo(() => {
     if (order) {
-      return filterItems(order, false)
+      return getAllReturnableItems(order, false)
     }
     return []
   }, [order])
 
-  const {
-    shipping_options: shippingOptions,
-    isLoading: shippingLoading,
-  } = useAdminShippingOptions({
-    is_return: true,
-    region_id: order.region_id,
-  })
+  const { shipping_options: shippingOptions, isLoading: shippingLoading } =
+    useAdminShippingOptions({
+      is_return: true,
+      region_id: order.region_id,
+    })
 
   const returnTotal = useMemo(() => {
     const items = Object.keys(toReturn).map((t) =>
@@ -103,8 +101,9 @@ const SwapMenu: React.FC<SwapMenuProps> = ({ order, onDismiss }) => {
 
   const additionalTotal = useMemo(() => {
     return itemsToAdd.reduce((acc, next) => {
-      let amount = next.prices.find((ma) => ma.region_id === order.region_id)
-        ?.amount
+      let amount = next.prices.find(
+        (ma) => ma.region_id === order.region_id
+      )?.amount
 
       if (!amount) {
         amount = next.prices.find(
@@ -151,8 +150,10 @@ const SwapMenu: React.FC<SwapMenuProps> = ({ order, onDismiss }) => {
   }
 
   const handleUpdateShippingPrice = (value: number | undefined) => {
-    if (value && value >= 0) {
+    if (value !== undefined && value >= 0) {
       setShippingPrice(value)
+    } else {
+      setShippingPrice(0)
     }
   }
 
@@ -253,6 +254,7 @@ const SwapMenu: React.FC<SwapMenuProps> = ({ order, onDismiss }) => {
             )}
             {shippingMethod && (
               <RMAShippingPrice
+                inclTax={false}
                 useCustomShippingPrice={useCustomShippingPrice}
                 shippingPrice={shippingPrice}
                 currencyCode={order.currency_code}

@@ -1,9 +1,12 @@
 import clsx from "clsx"
 import { useAdminCreateNote, useAdminOrder } from "medusa-react"
 import React, { useState } from "react"
-import ClaimMenu from "../../../domain/orders/details/claim/create"
+
+import RegisterClaimMenu from "../../../domain/orders/details/claim/register-claim-menu"
 import ReturnMenu from "../../../domain/orders/details/returns"
 import SwapMenu from "../../../domain/orders/details/swap/create"
+import { orderReturnableFields } from "../../../domain/orders/details/utils/order-returnable-fields"
+import useOrdersExpandParam from "../../../domain/orders/details/utils/use-admin-expand-paramter"
 import {
   ClaimEvent,
   ExchangeEvent,
@@ -11,13 +14,18 @@ import {
   ItemsShippedEvent,
   NoteEvent,
   NotificationEvent,
+  OrderEditEvent,
+  OrderEditRequestedEvent,
   OrderPlacedEvent,
+  PaymentRequiredEvent,
   RefundEvent,
+  RefundRequiredEvent,
   ReturnEvent,
   TimelineEvent,
-  useBuildTimelime,
+  useBuildTimeline,
 } from "../../../hooks/use-build-timeline"
 import useNotification from "../../../hooks/use-notification"
+import useToggleState from "../../../hooks/use-toggle-state"
 import { getErrorMessage } from "../../../utils/error-messages"
 import Spinner from "../../atoms/spinner"
 import AlertIcon from "../../fundamentals/icons/alert-icon"
@@ -25,13 +33,20 @@ import BackIcon from "../../fundamentals/icons/back-icon"
 import RefreshIcon from "../../fundamentals/icons/refresh-icon"
 import Actionables, { ActionType } from "../../molecules/actionables"
 import NoteInput from "../../molecules/note-input"
-import Claim from "../../molecules/timeline-events/claim"
+import Claim from "../../molecules/timeline-events/claim-event"
 import Exchange from "../../molecules/timeline-events/exchange"
 import ItemsFulfilled from "../../molecules/timeline-events/items-fulfilled"
 import ItemsShipped from "../../molecules/timeline-events/items-shipped"
 import Note from "../../molecules/timeline-events/note"
 import Notification from "../../molecules/timeline-events/notification"
 import OrderCanceled from "../../molecules/timeline-events/order-canceled"
+import EditCanceled from "../../molecules/timeline-events/order-edit/canceled"
+import EditConfirmed from "../../molecules/timeline-events/order-edit/confirmed"
+import EditCreated from "../../molecules/timeline-events/order-edit/created"
+import EditDeclined from "../../molecules/timeline-events/order-edit/declined"
+import PaymentRequired from "../../molecules/timeline-events/order-edit/payment-required"
+import RefundRequired from "../../molecules/timeline-events/order-edit/refund-required"
+import EditRequested from "../../molecules/timeline-events/order-edit/requested"
 import OrderPlaced from "../../molecules/timeline-events/order-placed"
 import Refund from "../../molecules/timeline-events/refund"
 import Return from "../../molecules/timeline-events/return"
@@ -41,13 +56,24 @@ type TimelineProps = {
 }
 
 const Timeline: React.FC<TimelineProps> = ({ orderId }) => {
-  const { events, refetch } = useBuildTimelime(orderId)
+  const { orderRelations } = useOrdersExpandParam()
+
+  const { events, refetch } = useBuildTimeline(orderId)
   const notification = useNotification()
   const createNote = useAdminCreateNote()
-  const { order } = useAdminOrder(orderId)
+  const { order } = useAdminOrder(orderId, {
+    expand: orderRelations,
+    fields: orderReturnableFields,
+  })
+
   const [showRequestReturn, setShowRequestReturn] = useState(false)
   const [showCreateSwap, setshowCreateSwap] = useState(false)
-  const [showCreateClaim, setshowCreateClaim] = useState(false)
+
+  const {
+    state: showRegisterClaim,
+    close: closeRegisterClaim,
+    open: openRegisterClaim,
+  } = useToggleState()
 
   const actions: ActionType[] = [
     {
@@ -63,7 +89,7 @@ const Timeline: React.FC<TimelineProps> = ({ orderId }) => {
     {
       icon: <AlertIcon size={20} />,
       label: "Register Claim",
-      onClick: () => setshowCreateClaim(true),
+      onClick: openRegisterClaim,
     },
   ]
 
@@ -86,8 +112,8 @@ const Timeline: React.FC<TimelineProps> = ({ orderId }) => {
 
   return (
     <>
-      <div className="h-full w-5/12 rounded-rounded bg-grey-0 border border-grey-20">
-        <div className="py-large px-xlarge border-b border-grey-20">
+      <div className="h-full w-5/12 rounded-rounded border border-grey-20 bg-grey-0">
+        <div className="border-b border-grey-20 py-large px-xlarge">
           <div className="flex items-center justify-between">
             <h3 className="inter-xlarge-semibold">Timeline</h3>
             <div
@@ -108,11 +134,11 @@ const Timeline: React.FC<TimelineProps> = ({ orderId }) => {
         </div>
         <div className="py-large px-xlarge">
           {!events ? (
-            <div className="h-96 w-full flex items-center justify-center">
+            <div className="flex h-96 w-full items-center justify-center">
               <Spinner variant="secondary" size="large" />
             </div>
           ) : (
-            <div className="flex flex-col gap-y-base">
+            <div className="flex flex-col">
               {events.map((event, i) => {
                 return <div key={i}>{switchOnType(event, refetch)}</div>
               })}
@@ -129,8 +155,8 @@ const Timeline: React.FC<TimelineProps> = ({ orderId }) => {
       {showCreateSwap && order && (
         <SwapMenu order={order} onDismiss={() => setshowCreateSwap(false)} />
       )}
-      {showCreateClaim && order && (
-        <ClaimMenu order={order} onDismiss={() => setshowCreateClaim(false)} />
+      {showRegisterClaim && order && (
+        <RegisterClaimMenu order={order} onClose={closeRegisterClaim} />
       )}
     </>
   )
@@ -151,13 +177,33 @@ function switchOnType(event: TimelineEvent, refetch: () => void) {
     case "return":
       return <Return event={event as ReturnEvent} refetch={refetch} />
     case "exchange":
-      return <Exchange event={event as ExchangeEvent} refetch={refetch} />
+      return (
+        <Exchange
+          key={event.id}
+          event={event as ExchangeEvent}
+          refetch={refetch}
+        />
+      )
     case "claim":
-      return <Claim event={event as ClaimEvent} refetch={refetch} />
+      return <Claim event={event as ClaimEvent} />
     case "notification":
       return <Notification event={event as NotificationEvent} />
     case "refund":
       return <Refund event={event as RefundEvent} />
+    case "edit-created":
+      return <EditCreated event={event as OrderEditEvent} />
+    case "edit-canceled":
+      return <EditCanceled event={event as OrderEditEvent} />
+    case "edit-declined":
+      return <EditDeclined event={event as OrderEditEvent} />
+    case "edit-confirmed":
+      return <EditConfirmed event={event as OrderEditEvent} />
+    case "edit-requested":
+      return <EditRequested event={event as OrderEditRequestedEvent} />
+    case "refund-required":
+      return <RefundRequired event={event as RefundRequiredEvent} />
+    case "payment-required":
+      return <PaymentRequired event={event as PaymentRequiredEvent} />
     default:
       return null
   }

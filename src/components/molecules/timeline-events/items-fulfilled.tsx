@@ -11,7 +11,7 @@ type ItemsFulfilledProps = {
 const ItemsFulfilled: React.FC<ItemsFulfilledProps> = ({ event }) => {
   const title =
     event.sourceType === "claim"
-      ? "Claim Items Fulfilled"
+      ? "Replacement Items Fulfilled"
       : event.sourceType === "exchange"
       ? "Exchange Items Fulfilled"
       : "Items Fulfilled"
@@ -20,7 +20,9 @@ const ItemsFulfilled: React.FC<ItemsFulfilledProps> = ({ event }) => {
     icon: <PackageIcon size={20} />,
     time: event.time,
     title: title,
-    children: event.items.map((item) => <EventItemContainer item={item} />),
+    children: event.items.map((item, index) => (
+      <EventItemContainer item={item} key={index} />
+    )),
     noNotification: event.noNotification,
     isFirst: event.first,
   }
